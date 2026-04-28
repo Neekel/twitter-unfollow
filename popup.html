@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safe Unfollow</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+    :root {
+      --bg: #0e0e0f;
+      --surface: #161618;
+      --surface2: #1e1e21;
+      --border: #2a2a2e;
+      --accent: #4ade80;
+      --accent-dim: #166534;
+      --danger: #f87171;
+      --danger-dim: #7f1d1d;
+      --text: #e4e4e7;
+      --muted: #71717a;
+      --yellow: #fbbf24;
+      --blue: #60a5fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 340px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .logo svg { width: 16px; height: 16px; }
+    .header-text h1 {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .header-text p { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .tab {
+      flex: 1; padding: 9px 4px;
+      text-align: center;
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    /* ── Tab panels ── */
+    .panel { display: none; padding: 12px 14px; flex-direction: column; gap: 10px; }
+    .panel.active { display: flex; }
+
+    /* ── Status bar ── */
+    .status-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0; transition: background 0.3s;
+    }
+    .status-dot.ready  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .status-dot.running { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); animation: pulse 1s infinite; }
+    .status-dot.done   { background: var(--accent); }
+    .status-dot.error  { background: var(--danger); }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    #status-text { font-size: 12px; color: var(--muted); }
+
+    /* ── Stats ── */
+    .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 7px; }
+    .stat {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 6px; text-align: center;
+    }
+    .stat-val { font-family: 'Space Mono', monospace; font-size: 17px; font-weight: 700; line-height: 1; }
+    .stat-val.green { color: var(--accent); }
+    .stat-val.red   { color: var(--danger); }
+    .stat-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 3px; }
+
+    /* ── Accounts list ── */
+    .accounts-header {
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .accounts-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .btn-refresh {
+      background: none; border: none;
+      color: var(--blue); font-size: 11px;
+      cursor: pointer; padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .btn-refresh:hover { background: rgba(96,165,250,0.1); }
+
+    .accounts-list {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .account-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .account-item:last-child { border-bottom: none; }
+    .account-item:hover { background: var(--surface2); }
+    .account-item.selected { background: rgba(74,222,128,0.07); }
+
+    .account-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; color: var(--muted);
+      flex-shrink: 0; overflow: hidden;
+    }
+    .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .account-info { flex: 1; min-width: 0; }
+    .account-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .account-handle { font-size: 10px; color: var(--muted); }
+
+    .account-badges { display: flex; gap: 4px; align-items: center; }
+    .badge-active {
+      font-size: 8px; padding: 2px 5px;
+      background: rgba(74,222,128,0.15);
+      color: var(--accent);
+      border-radius: 3px;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700; letter-spacing: 0.05em;
+    }
+    .badge-done {
+      font-size: 8px; padding: 2px 5px;
+      background: rgba(251,191,36,0.15);
+      color: var(--yellow);
+      border-radius: 3px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .account-check {
+      width: 16px; height: 16px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+    .account-item.selected .account-check {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .account-check::after {
+      content: '';
+      display: none;
+      width: 8px; height: 5px;
+      border-left: 2px solid #0a1a0a;
+      border-bottom: 2px solid #0a1a0a;
+      transform: rotate(-45deg) translate(1px,-1px);
+    }
+    .account-item.selected .account-check::after { display: block; }
+
+    .no-accounts {
+      padding: 16px 12px;
+      text-align: center;
+      font-size: 11px; color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Mode selector ── */
+    .mode-row {
+      display: flex; gap: 6px;
+    }
+    .mode-btn {
+      flex: 1; padding: 8px 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; font-weight: 700;
+      letter-spacing: 0.05em;
+      cursor: pointer; text-align: center;
+      transition: all 0.15s;
+    }
+    .mode-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(74,222,128,0.08);
+    }
+
+    /* ── Settings ── */
+    .settings {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .settings-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 9px; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.1em;
+    }
+    .setting-row { display: flex; align-items: center; justify-content: space-between; }
+    .setting-label { font-size: 12px; color: var(--text); }
+    .setting-input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-family: 'Space Mono', monospace;
+      font-size: 12px;
+      padding: 3px 8px;
+      width: 64px; text-align: center; outline: none;
+    }
+    .setting-input:focus { border-color: var(--accent); }
+
+    /* ── Progress ── */
+    .progress-wrap { display: none; flex-direction: column; gap: 5px; }
+    .progress-wrap.visible { display: flex; }
+    .progress-track { background: var(--surface2); border-radius: 4px; height: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.4s ease; width: 0%; }
+    .progress-label { font-size: 10px; color: var(--muted); text-align: right; }
+
+    /* ── Queue progress (multi-account) ── */
+    .queue-progress { display: none; flex-direction: column; gap: 5px; }
+    .queue-progress.visible { display: flex; }
+    .queue-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 11px;
+    }
+    .queue-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .queue-dot.done    { background: var(--accent); }
+    .queue-dot.active  { background: var(--yellow); animation: pulse 1s infinite; }
+    .queue-dot.waiting { background: var(--muted); }
+    .queue-label { flex: 1; }
+    .queue-count { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); }
+
+    /* ── Log ── */
+    .log {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 10px;
+      max-height: 80px;
+      overflow-y: auto;
+      display: none; flex-direction: column; gap: 2px;
+    }
+    .log.visible { display: flex; }
+    .log-line { font-family: 'Space Mono', monospace; font-size: 10px; color: var(--muted); line-height: 1.5; }
+    .log-line.ok   { color: var(--accent); }
+    .log-line.err  { color: var(--danger); }
+    .log-line.info { color: var(--yellow); }
+    .log-line.blue { color: var(--blue); }
+    .log::-webkit-scrollbar { width: 3px; }
+    .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── History ── */
+    .history-list { display: flex; flex-direction: column; gap: 6px; }
+    .history-item {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 9px 12px;
+    }
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .history-account { font-size: 12px; font-weight: 500; color: var(--text); }
+    .history-date { font-size: 10px; color: var(--muted); }
+    .history-stats { display: flex; gap: 10px; }
+    .history-stat { font-family: "Space Mono", monospace; font-size: 10px; }
+    .history-stat.ok  { color: var(--accent); }
+    .history-stat.red { color: var(--danger); }
+    .history-stat.dim { color: var(--muted); }
+    .history-toggle {
+      font-size: 10px; color: var(--blue); cursor: pointer;
+      background: none; border: none; padding: 2px 0; margin-top: 4px;
+    }
+    .history-log {
+      display: none; margin-top: 6px;
+      background: var(--surface2); border-radius: 5px;
+      padding: 6px 8px; max-height: 100px; overflow-y: auto;
+    }
+    .history-log.open { display: block; }
+    .history-log-line { font-family: "Space Mono", monospace; font-size: 9px; color: var(--muted); line-height: 1.6; }
+    .history-log-line.ok   { color: var(--accent); }
+    .history-log-line.warn { color: var(--yellow); }
+    .history-empty { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 0; }
+    .btn-clear-history {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-size: 10px; padding: 4px 10px; cursor: pointer;
+      font-family: "Space Mono", monospace;
+    }
+    .btn-clear-history:hover { border-color: var(--danger); color: var(--danger); }
+
+    /* ── Warning ── */
+    .warning {
+      background: #1c1500; border: 1px solid #3d2e00;
+      border-radius: 8px; padding: 9px 12px;
+      display: flex; gap: 8px; align-items: flex-start;
+    }
+    .warning p { font-size: 11px; color: #d97706; line-height: 1.5; }
+
+    /* ── Nav hint ── */
+    .nav-hint {
+      display: none;
+      background: #0e1a2e; border: 1px solid #1e3a5f;
+      border-radius: 8px; padding: 9px 12px;
+      font-size: 11px; color: #93c5fd; line-height: 1.5; text-align: center;
+    }
+    .nav-hint.visible { display: block; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1; padding: 10px;
+      border: none; border-radius: 8px;
+      font-family: 'Space Mono', monospace;
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.05em; cursor: pointer; transition: all 0.15s;
+    }
+    .btn-start { background: var(--accent); color: #0a1a0a; }
+    .btn-start:hover { background: #86efac; }
+    .btn-start:disabled { background: var(--accent-dim); color: #1a3a1a; cursor: not-allowed; }
+    .btn-stop { background: var(--surface2); border: 1px solid var(--danger); color: var(--danger); }
+    .btn-stop:hover { background: var(--danger-dim); }
+    .btn-stop:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Session stats (per account in multi mode) ── */
+    .session-stats {
+      display: none; flex-direction: column; gap: 4px;
+    }
+    .session-stats.visible { display: flex; }
+    .session-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; font-size: 11px;
+    }
+    .session-handle { color: var(--muted); }
+    .session-count  { font-family: 'Space Mono', monospace; color: var(--accent); font-size: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <svg viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M2 4h12M2 8h8M2 12h10" stroke="#0a1a0a" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="13" cy="12" r="2.5" fill="#0a1a0a"/>
+    </svg>
+  </div>
+  <div class="header-text">
+    <h1>X / SAFE UNFOLLOW</h1>
+    <p>Human-like · Rate limited · Multi-account</p>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" data-tab="run">▶ Run</div>
+  <div class="tab" data-tab="accounts">👤 Accounts</div>
+  <div class="tab" data-tab="settings">⚙ Settings</div>
+  <div class="tab" data-tab="history">📋 History</div>
+</div>
+
+<!-- ══ RUN TAB ══ -->
+<div class="panel active" id="tab-run">
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Loading accounts…</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-val" id="stat-scanned">0</div><div class="stat-label">Scanned</div></div>
+    <div class="stat"><div class="stat-val green" id="stat-unfollowed">0</div><div class="stat-label">Unfollowed</div></div>
+    <div class="stat"><div class="stat-val red" id="stat-skipped">0</div><div class="stat-label">Skipped</div></div>
+  </div>
+
+  <!-- Mode -->
+  <div class="mode-row">
+    <div class="mode-btn active" id="mode-current" data-mode="current">CURRENT ACCOUNT</div>
+    <div class="mode-btn" id="mode-all" data-mode="all">ALL SELECTED</div>
+  </div>
+
+  <!-- Queue progress (multi-account mode) -->
+  <div class="queue-progress" id="queue-progress"></div>
+
+  <!-- Single account progress -->
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label">0 / 0</div>
+  </div>
+
+  <div class="log" id="log"></div>
+
+  <div class="nav-hint" id="nav-hint">
+    👉 Go to <strong>x.com</strong> first to detect accounts
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-start" id="btn-start" disabled>▶ START</button>
+    <button class="btn btn-stop"  id="btn-stop"  disabled>■ STOP</button>
+  </div>
+
+</div>
+
+<!-- ══ ACCOUNTS TAB ══ -->
+<div class="panel" id="tab-accounts">
+
+  <div class="accounts-header">
+    <span class="accounts-title">Logged-in accounts</span>
+    <button class="btn-refresh" id="btn-refresh">↻ Refresh</button>
+  </div>
+
+  <div class="accounts-list" id="accounts-list">
+    <div class="no-accounts">Open x.com and click Refresh to detect accounts</div>
+  </div>
+
+  <div class="warning">
+    <p>⚠ Accounts must already be logged in via x.com. Extension switches between them automatically using the native Twitter UI.</p>
+  </div>
+
+  <!-- Per-account session stats -->
+  <div class="session-stats" id="session-stats"></div>
+
+</div>
+
+<!-- ══ SETTINGS TAB ══ -->
+<div class="panel" id="tab-settings">
+
+  <div class="settings">
+    <div class="settings-title">⚙ Unfollow settings</div>
+    <div class="setting-row">
+      <span class="setting-label">Daily limit / account</span>
+      <input type="number" class="setting-input" id="daily-limit" value="50" min="5" max="200" />
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Min delay (sec)</span>
+      <input type="number" class="setting-input" id="delay-min" value="3" min="1" max="30" />
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Max delay (sec)</span>
+      <input type="number" class="setting-input" id="delay-max" value="10" min="2" max="60" />
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Pause between accounts (sec)</span>
+      <input type="number" class="setting-input" id="account-pause" value="30" min="10" max="300" />
+    </div>
+  </div>
+
+  <div class="warning">
+    <p>⚠ Recommended: keep delays at 3–10s and limit at 50/day per account to minimize detection risk.</p>
+  </div>
+
+</div>
+
+<!-- ══ HISTORY TAB ══ -->
+<div class="panel" id="tab-history">
+  <div class="accounts-header">
+    <span class="accounts-title">📋 Session history</span>
+    <button class="btn-clear-history" id="btn-clear-history">✕ Clear</button>
+  </div>
+  <div class="history-list" id="history-list">
+    <div class="history-empty">No sessions yet</div>
+  </div>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>
